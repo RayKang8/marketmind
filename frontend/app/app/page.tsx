@@ -11,13 +11,18 @@ type User = {
   updatedAt: string;
 };
 
+type WatchlistItem = {
+  id: string;
+  ticker: string;
+};
+
 type Watchlist = {
   id: string;
   name: string;
   userId: string;
   createdAt: string;
   updatedAt: string;
-  items: { id: string; ticker: string }[];
+  items: WatchlistItem[];
 };
 
 export default function AppPage() {
@@ -27,6 +32,9 @@ export default function AppPage() {
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [newWatchlistName, setNewWatchlistName] = useState("");
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -73,6 +81,44 @@ export default function AppPage() {
     fetchData();
   }, [router]);
 
+  const createWatchlist = async () => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    if (!newWatchlistName.trim()) return;
+
+    try {
+      setCreating(true);
+
+      const res = await fetch(`${API_BASE_URL}/api/watchlists`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: newWatchlistName.trim() }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Failed to create watchlist:", data);
+        return;
+      }
+
+      setWatchlists((prev) => [data, ...prev]);
+      setNewWatchlistName("");
+    } catch (err) {
+      console.error("Create watchlist error:", err);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem("token");
     router.push("/login");
@@ -80,7 +126,7 @@ export default function AppPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-white text-zinc-900 flex items-center justify-center">
+      <main className="flex min-h-screen items-center justify-center bg-white text-zinc-900">
         <p className="text-sm text-zinc-500">Loading MarketMind...</p>
       </main>
     );
@@ -106,6 +152,23 @@ export default function AppPage() {
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Watchlists
               </h2>
+
+              <div className="mb-3 flex gap-2">
+                <input
+                  value={newWatchlistName}
+                  onChange={(e) => setNewWatchlistName(e.target.value)}
+                  placeholder="New watchlist"
+                  className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-400"
+                />
+
+                <button
+                  onClick={createWatchlist}
+                  disabled={creating}
+                  className="rounded-xl bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {creating ? "..." : "+"}
+                </button>
+              </div>
 
               <div className="space-y-2">
                 {watchlists.length > 0 ? (
