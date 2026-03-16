@@ -140,6 +140,43 @@ export default function AppPage() {
     }
   };
 
+  const deleteWatchlist = async () => {
+    const token = localStorage.getItem("token");
+  
+    if (!token || !selectedWatchlistId) {
+      router.push("/login");
+      return;
+    }
+  
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/watchlists/${selectedWatchlistId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        console.error("Failed to delete watchlist:", data);
+        return;
+      }
+  
+      const updatedWatchlists = watchlists.filter(
+        (watchlist) => watchlist.id !== selectedWatchlistId
+      );
+  
+      setWatchlists(updatedWatchlists);
+      setSelectedWatchlistId(updatedWatchlists.length > 0 ? updatedWatchlists[0].id : null);
+    } catch (err) {
+      console.error("Delete watchlist error:", err);
+    }
+  };
+
   const addTickerToWatchlist = async () => {
     const token = localStorage.getItem("token");
 
@@ -344,11 +381,22 @@ export default function AppPage() {
             ) : selectedWatchlist ? (
               <div className="max-w-3xl">
                 <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-5 py-4">
-                  <p className="text-sm text-zinc-500">Selected Watchlist</p>
-                  <p className="mt-2 text-sm leading-7 text-zinc-900">
-                    Add and manage stock tickers here. Later this watchlist will be used
-                    for AI analysis, alerts, and portfolio-style insights.
-                  </p>
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                    <p className="text-sm text-zinc-500">Selected Watchlist</p>
+                    <p className="mt-2 text-sm leading-7 text-zinc-900">
+                        Add and manage stock tickers here. Later this watchlist will be used
+                        for AI analysis, alerts, and portfolio-style insights.
+                    </p>
+                    </div>
+
+                    <button
+                    onClick={deleteWatchlist}
+                    className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
+                    >
+                    Delete watchlist
+                    </button>
+                </div>
                 </div>
 
                 <div className="mt-6 flex gap-2">

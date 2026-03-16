@@ -122,3 +122,31 @@ exports.deleteWatchlistItem = async (req, res) => {
     res.status(500).json({ error: "Failed to remove ticker" });
   }
 };
+
+exports.deleteWatchlist = async (req, res) => {
+  try {
+    const { watchlistId } = req.params;
+
+    const watchlist = await prisma.watchlist.findFirst({
+      where: {
+        id: watchlistId,
+        userId: req.user.userId
+      }
+    });
+
+    if (!watchlist) {
+      return res.status(404).json({ error: "Watchlist not found" });
+    }
+
+    await prisma.watchlist.delete({
+      where: {
+        id: watchlistId
+      }
+    });
+
+    res.json({ message: "Watchlist deleted" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to delete watchlist" });
+  }
+};
