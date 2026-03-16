@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 
@@ -14,6 +14,8 @@ type User = {
 type WatchlistItem = {
   id: string;
   ticker: string;
+  watchlistId: string;
+  createdAt?: string;
 };
 
 type Watchlist = {
@@ -30,11 +32,20 @@ export default function AppPage() {
 
   const [user, setUser] = useState<User | null>(null);
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
+  const [selectedWatchlistId, setSelectedWatchlistId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [newWatchlistName, setNewWatchlistName] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [creatingWatchlist, setCreatingWatchlist] = useState(false);
+
+  const [newTicker, setNewTicker] = useState("");
+  const [addingTicker, setAddingTicker] = useState(false);
+
+  const selectedWatchlist = useMemo(() => {
+    return watchlists.find((w) => w.id === selectedWatchlistId) || null;
+  }, [watchlists, selectedWatchlistId]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -70,6 +81,10 @@ export default function AppPage() {
 
         setUser(meData);
         setWatchlists(watchlistsData);
+
+        if (watchlistsData.length > 0) {
+          setSelectedWatchlistId(watchlistsData[0].id);
+        }
       } catch (err) {
         console.error(err);
         setError("Failed to load dashboard");
@@ -80,6 +95,11 @@ export default function AppPage() {
 
     fetchData();
   }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    router.push("/login");
+  };
 
   const createWatchlist = async () => {
     const token = localStorage.getItem("token");
@@ -92,7 +112,7 @@ export default function AppPage() {
     if (!newWatchlistName.trim()) return;
 
     try {
-      setCreating(true);
+      setCreatingWatchlist(true);
 
       const res = await fetch(`${API_BASE_URL}/api/watchlists`, {
         method: "POST",
@@ -111,17 +131,104 @@ export default function AppPage() {
       }
 
       setWatchlists((prev) => [data, ...prev]);
+      setSelectedWatchlistId(data.id);
       setNewWatchlistName("");
     } catch (err) {
       console.error("Create watchlist error:", err);
     } finally {
-      setCreating(false);
+      setCreatingWatchlist(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    router.push("/login");
+  const addTickerToWatchlist = async () => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    if (!selectedWatchlistId || !newTicker.trim()) return;
+
+    try {
+      setAddingTicker(true);
+
+      const res = await fetch(
+        `${API_BASE_URL}/api/watchlists/${selectedWatchlistId}/items`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ ticker: newTicker.trim().toUpperCase() }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Failed to add ticker:", data);
+        return;
+      }
+
+      setWatchlists((prev) =>
+        prev.map((watchlist) =>
+          watchlist.id === selectedWatchlistId
+            ? { ...watchlist, items: [...watchlist.items, data] }
+            : watchlist
+        )
+      );
+
+      setNewTicker("");
+    } catch (err) {
+      console.error("Add ticker error:", err);
+    } finally {
+      setAddingTicker(false);
+    }
+  };
+
+  const removeTickerFromWatchlist = async (itemId: string) => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    if (!selectedWatchlistId) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/watchlists/${selectedWatchlistId}/items/${itemId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Failed to remove ticker:", data);
+        return;
+      }
+
+      setWatchlists((prev) =>
+        prev.map((watchlist) =>
+          watchlist.id === selectedWatchlistId
+            ? {
+                ...watchlist,
+                items: watchlist.items.filter((item) => item.id !== itemId),
+              }
+            : watchlist
+        )
+      );
+    } catch (err) {
+      console.error("Remove ticker error:", err);
+    }
   };
 
   if (loading) {
@@ -163,23 +270,40 @@ export default function AppPage() {
 
                 <button
                   onClick={createWatchlist}
-                  disabled={creating}
+                  disabled={creatingWatchlist}
                   className="rounded-xl bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {creating ? "..." : "+"}
+                  {creatingWatchlist ? "..." : "+"}
                 </button>
               </div>
 
               <div className="space-y-2">
                 {watchlists.length > 0 ? (
-                  watchlists.map((watchlist) => (
-                    <div
-                      key={watchlist.id}
-                      className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm"
-                    >
-                      {watchlist.name}
-                    </div>
-                  ))
+                  watchlists.map((watchlist) => {
+                    const isSelected = selectedWatchlistId === watchlist.id;
+
+                    return (
+                      <button
+                        key={watchlist.id}
+                        onClick={() => setSelectedWatchlistId(watchlist.id)}
+                        className={`w-full rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                          isSelected
+                            ? "border-zinc-900 bg-zinc-900 text-white"
+                            : "border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-100"
+                        }`}
+                      >
+                        <div className="font-medium">{watchlist.name}</div>
+                        <div
+                          className={`mt-1 text-xs ${
+                            isSelected ? "text-zinc-300" : "text-zinc-500"
+                          }`}
+                        >
+                          {watchlist.items.length} stock
+                          {watchlist.items.length === 1 ? "" : "s"}
+                        </div>
+                      </button>
+                    );
+                  })
                 ) : (
                   <p className="text-sm text-zinc-500">No watchlists yet.</p>
                 )}
@@ -203,10 +327,12 @@ export default function AppPage() {
         <section className="flex flex-1 flex-col">
           <div className="border-b border-zinc-200 px-8 py-6">
             <h2 className="text-2xl font-semibold tracking-tight">
-              Research Workspace
+              {selectedWatchlist ? selectedWatchlist.name : "Research Workspace"}
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Ask about stocks, market moves, sectors, and portfolio risk.
+              {selectedWatchlist
+                ? "Manage stocks in this watchlist."
+                : "Ask about stocks, market moves, sectors, and portfolio risk."}
             </p>
           </div>
 
@@ -215,43 +341,68 @@ export default function AppPage() {
               <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-red-600">
                 {error}
               </div>
+            ) : selectedWatchlist ? (
+              <div className="max-w-3xl">
+                <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-5 py-4">
+                  <p className="text-sm text-zinc-500">Selected Watchlist</p>
+                  <p className="mt-2 text-sm leading-7 text-zinc-900">
+                    Add and manage stock tickers here. Later this watchlist will be used
+                    for AI analysis, alerts, and portfolio-style insights.
+                  </p>
+                </div>
+
+                <div className="mt-6 flex gap-2">
+                  <input
+                    value={newTicker}
+                    onChange={(e) => setNewTicker(e.target.value)}
+                    placeholder="Add ticker (e.g. NVDA)"
+                    className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-zinc-400"
+                  />
+                  <button
+                    onClick={addTickerToWatchlist}
+                    disabled={addingTicker}
+                    className="rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {addingTicker ? "Adding..." : "Add"}
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-3">
+                  {selectedWatchlist.items.length > 0 ? (
+                    selectedWatchlist.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-white px-4 py-3"
+                      >
+                        <div>
+                          <p className="text-sm font-medium text-zinc-900">{item.ticker}</p>
+                          <p className="text-xs text-zinc-500">Saved to watchlist</p>
+                        </div>
+
+                        <button
+                          onClick={() => removeTickerFromWatchlist(item.id)}
+                          className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-sm text-zinc-500">
+                      No stocks in this watchlist yet.
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
-              <>
-                <div className="max-w-3xl space-y-4">
-                  <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-5 py-4">
-                    <p className="text-sm text-zinc-500">MarketMind</p>
-                    <p className="mt-2 text-sm leading-7 text-zinc-900">
-                      Welcome back. This will become your AI-powered market research
-                      workspace.
-                    </p>
-                  </div>
-
-                  <div className="rounded-3xl border border-zinc-200 bg-white px-5 py-4">
-                    <p className="text-sm text-zinc-500">You</p>
-                    <p className="mt-2 text-sm leading-7 text-zinc-900">
-                      Why is Nvidia up today?
-                    </p>
-                  </div>
-
-                  <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-5 py-4">
-                    <p className="text-sm text-zinc-500">MarketMind</p>
-                    <p className="mt-2 text-sm leading-7 text-zinc-900">
-                      Placeholder response. Later this area will show LLM-powered,
-                      data-backed stock analysis.
-                    </p>
-                  </div>
+              <div className="max-w-3xl space-y-4">
+                <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-5 py-4">
+                  <p className="text-sm text-zinc-500">MarketMind</p>
+                  <p className="mt-2 text-sm leading-7 text-zinc-900">
+                    Create a watchlist in the sidebar to start organizing stocks.
+                  </p>
                 </div>
-
-                <div className="mt-auto pt-8">
-                  <div className="max-w-3xl rounded-[28px] border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-                    <input
-                      type="text"
-                      placeholder="Ask MarketMind about a stock or market event..."
-                      className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
-                    />
-                  </div>
-                </div>
-              </>
+              </div>
             )}
           </div>
         </section>
