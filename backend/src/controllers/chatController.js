@@ -170,3 +170,31 @@ exports.sendMessage = async (req, res) => {
     res.status(500).json({ error: "Failed to send message" });
   }
 };
+
+exports.deleteChat = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+
+    const chat = await prisma.chat.findFirst({
+      where: {
+        id: chatId,
+        userId: req.user.userId,
+      },
+    });
+
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    await prisma.chat.delete({
+      where: {
+        id: chatId,
+      },
+    });
+
+    res.json({ message: "Chat deleted" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to delete chat" });
+  }
+};

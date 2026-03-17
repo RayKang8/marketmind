@@ -7,11 +7,13 @@ const {
   createChat,
   getMessages,
   sendMessage,
+  deleteChat,
 } = require("../controllers/chatController");
 
 router.get("/", authMiddleware, getChats);
 router.post("/", authMiddleware, createChat);
 router.get("/:chatId/messages", authMiddleware, getMessages);
 router.post("/:chatId/messages", authMiddleware, sendMessage);
+router.delete("/:chatId", authMiddleware, deleteChat);
 
 module.exports = router;

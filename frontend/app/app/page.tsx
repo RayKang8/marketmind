@@ -388,6 +388,39 @@ export default function AppPage() {
     }
   };
 
+  const deleteChat = async () => {
+    const token = localStorage.getItem("token");
+  
+    if (!token || !selectedChatId) {
+      router.push("/login");
+      return;
+    }
+  
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/chats/${selectedChatId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+  
+      const data = await res.json();
+  
+      if (!res.ok) {
+        console.error("Failed to delete chat:", data);
+        return;
+      }
+  
+      const updatedChats = chats.filter((chat) => chat.id !== selectedChatId);
+  
+      setChats(updatedChats);
+      setSelectedChatId(updatedChats.length > 0 ? updatedChats[0].id : null);
+      setMessages([]);
+    } catch (err) {
+      console.error("Delete chat error:", err);
+    }
+  };
+
   const sendMessage = async () => {
     const token = localStorage.getItem("token");
 
@@ -603,7 +636,9 @@ export default function AppPage() {
 
         <section className="flex min-w-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="border-b border-zinc-200 px-8 py-6">
+          <div className="border-b border-zinc-200 px-8 py-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
               <h2 className="truncate text-2xl font-semibold tracking-tight">
                 {selectedChat ? selectedChat.title : "Research Workspace"}
               </h2>
@@ -611,6 +646,17 @@ export default function AppPage() {
                 Ask about stocks, market moves, sectors, and portfolio risk.
               </p>
             </div>
+
+            {selectedChat && (
+              <button
+                onClick={deleteChat}
+                className="shrink-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+              >
+                Delete chat
+              </button>
+            )}
+          </div>
+        </div>
 
             <div className="flex min-h-0 flex-1 flex-col px-8 py-6">
               {error ? (
