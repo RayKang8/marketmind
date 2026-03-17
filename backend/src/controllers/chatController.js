@@ -87,6 +87,23 @@ exports.sendMessage = async (req, res) => {
       return res.status(404).json({ error: "Chat not found" });
     }
 
+    const selectedWatchlist = await prisma.watchlist.findFirst({
+      where: {
+        userId: req.user.userId,
+      },
+      include: {
+        items: true,
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+    });
+
+    const previousMessages = await prisma.message.findMany({
+      where: { chatId },
+      orderBy: { createdAt: "asc" },
+    });
+
     const userMessage = await prisma.message.create({
       data: {
         chatId,
@@ -95,11 +112,41 @@ exports.sendMessage = async (req, res) => {
       },
     });
 
+    let assistantReply = "Sorry, I could not generate a response right now.";
+
+    try {
+      const aiRes = await fetch(`${process.env.AI_SERVICE_URL}/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: content.trim(),
+          watchlist_name: selectedWatchlist?.name || null,
+          tickers: selectedWatchlist?.items?.map((item) => item.ticker) || [],
+          history: previousMessages.map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
+        }),
+      });
+
+      const aiData = await aiRes.json();
+
+      if (aiRes.ok && aiData.reply) {
+        assistantReply = aiData.reply;
+      } else {
+        console.error("AI service error:", aiData);
+      }
+    } catch (aiError) {
+      console.error("AI service request failed:", aiError);
+    }
+
     const assistantMessage = await prisma.message.create({
       data: {
         chatId,
         role: "assistant",
-        content: `Placeholder response for: "${content.trim()}"`,
+        content: assistantReply,
       },
     });
 
@@ -107,6 +154,10 @@ exports.sendMessage = async (req, res) => {
       where: { id: chatId },
       data: {
         updatedAt: new Date(),
+        title:
+          chat.title === "New Chat"
+            ? content.trim().slice(0, 40)
+            : chat.title,
       },
     });
 
