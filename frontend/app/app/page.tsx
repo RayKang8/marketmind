@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API_BASE_URL } from "@/lib/api";
 
@@ -45,6 +45,7 @@ type Message = {
 
 export default function AppPage() {
   const router = useRouter();
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const [user, setUser] = useState<User | null>(null);
   const [watchlists, setWatchlists] = useState<Watchlist[]>([]);
@@ -75,6 +76,10 @@ export default function AppPage() {
   const selectedChat = useMemo(() => {
     return chats.find((chat) => chat.id === selectedChatId) || null;
   }, [chats, selectedChatId]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -464,33 +469,33 @@ export default function AppPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-white text-zinc-900">
+      <main className="flex h-screen items-center justify-center bg-white text-zinc-900">
         <p className="text-sm text-zinc-500">Loading MarketMind...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-white text-zinc-900">
-      <div className="flex min-h-screen">
-        <aside className="w-[300px] border-r border-zinc-200 bg-zinc-50/70 p-4">
-          <div className="flex h-full flex-col">
+    <main className="h-screen overflow-hidden bg-white text-zinc-900">
+      <div className="flex h-full">
+        <aside className="flex h-full w-[300px] flex-col border-r border-zinc-200 bg-zinc-50/70 p-4">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">MarketMind</h1>
+            <p className="mt-1 text-sm text-zinc-500">
+              AI-powered investment research
+            </p>
+          </div>
+
+          <button
+            onClick={createChat}
+            disabled={creatingChat}
+            className="mt-6 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-900 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {creatingChat ? "Creating..." : "+ New Chat"}
+          </button>
+
+          <div className="mt-8 min-h-0 flex-1 overflow-y-auto pr-1">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight">MarketMind</h1>
-              <p className="mt-1 text-sm text-zinc-500">
-                AI-powered investment research
-              </p>
-            </div>
-
-            <button
-              onClick={createChat}
-              disabled={creatingChat}
-              className="mt-6 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium text-zinc-900 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {creatingChat ? "Creating..." : "+ New Chat"}
-            </button>
-
-            <div className="mt-8">
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Saved Chats
               </h2>
@@ -581,40 +586,40 @@ export default function AppPage() {
                 )}
               </div>
             </div>
+          </div>
 
-            <div className="mt-auto border-t border-zinc-200 pt-4">
-              <p className="text-sm font-medium text-zinc-900">
-                {user?.email || "Unknown user"}
-              </p>
-              <button
-                onClick={handleLogout}
-                className="mt-3 w-full rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
-              >
-                Log out
-              </button>
-            </div>
+          <div className="mt-4 border-t border-zinc-200 pt-4">
+            <p className="text-sm font-medium text-zinc-900">
+              {user?.email || "Unknown user"}
+            </p>
+            <button
+              onClick={handleLogout}
+              className="mt-3 w-full rounded-2xl bg-zinc-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-zinc-800"
+            >
+              Log out
+            </button>
           </div>
         </aside>
 
-        <section className="flex min-w-0 flex-1 flex-col">
-          <div className="border-b border-zinc-200 px-8 py-6">
-            <h2 className="text-2xl font-semibold tracking-tight">
-              {selectedChat ? selectedChat.title : "Research Workspace"}
-            </h2>
-            <p className="mt-1 text-sm text-zinc-500">
-              Ask about stocks, market moves, sectors, and portfolio risk.
-            </p>
-          </div>
+        <section className="flex min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <div className="border-b border-zinc-200 px-8 py-6">
+              <h2 className="truncate text-2xl font-semibold tracking-tight">
+                {selectedChat ? selectedChat.title : "Research Workspace"}
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Ask about stocks, market moves, sectors, and portfolio risk.
+              </p>
+            </div>
 
-          <div className="grid flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="flex min-h-0 flex-col px-8 py-8">
+            <div className="flex min-h-0 flex-1 flex-col px-8 py-6">
               {error ? (
                 <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-red-600">
                   {error}
                 </div>
               ) : (
                 <>
-                  <div className="flex-1 overflow-y-auto">
+                  <div className="min-h-0 flex-1 overflow-y-auto pr-2">
                     {messagesLoading ? (
                       <p className="text-sm text-zinc-500">Loading messages...</p>
                     ) : messages.length > 0 ? (
@@ -636,6 +641,7 @@ export default function AppPage() {
                             </p>
                           </div>
                         ))}
+                        <div ref={bottomRef} />
                       </div>
                     ) : (
                       <div className="max-w-3xl space-y-4">
@@ -646,11 +652,12 @@ export default function AppPage() {
                             watchlist. This chat system is now wired into your backend.
                           </p>
                         </div>
+                        <div ref={bottomRef} />
                       </div>
                     )}
                   </div>
 
-                  <div className="mt-6 pt-4">
+                  <div className="mt-4 shrink-0 pt-2">
                     <div className="max-w-3xl rounded-[28px] border border-zinc-200 bg-white px-4 py-3 shadow-sm">
                       <div className="flex items-center gap-3">
                         <input
@@ -679,14 +686,16 @@ export default function AppPage() {
                 </>
               )}
             </div>
+          </div>
 
-            <aside className="border-l border-zinc-200 bg-zinc-50/40 px-6 py-8">
-              <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-                Watchlist Panel
-              </h3>
+          <aside className="flex h-full w-[360px] flex-col border-l border-zinc-200 bg-zinc-50/40 px-6 py-8">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
+              Watchlist Panel
+            </h3>
 
+            <div className="mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
               {selectedWatchlist ? (
-                <div className="mt-4">
+                <div>
                   <div className="rounded-3xl border border-zinc-200 bg-white px-5 py-4">
                     <div className="flex items-start justify-between gap-4">
                       <div>
@@ -755,12 +764,12 @@ export default function AppPage() {
                   </div>
                 </div>
               ) : (
-                <div className="mt-4 rounded-3xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-500">
+                <div className="rounded-3xl border border-zinc-200 bg-white px-5 py-4 text-sm text-zinc-500">
                   Select or create a watchlist to manage your saved stocks.
                 </div>
               )}
-            </aside>
-          </div>
+            </div>
+          </aside>
         </section>
       </div>
     </main>
