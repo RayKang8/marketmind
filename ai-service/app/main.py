@@ -1,15 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from openai import OpenAI
+from google import genai
 import os
 
 load_dotenv()
 
 app = FastAPI()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-5.4-mini")
+client = genai.Client()
+MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
 
 class ChatRequest(BaseModel):
     message: str
@@ -17,9 +18,11 @@ class ChatRequest(BaseModel):
     tickers: list[str] = []
     history: list[dict] = []
 
+
 @app.get("/health")
 def health():
     return {"message": "AI service is running"}
+
 
 @app.post("/chat")
 def chat(req: ChatRequest):
@@ -41,40 +44,34 @@ Rules:
         if req.tickers:
             context_bits.append(f"Watchlist tickers: {', '.join(req.tickers)}")
 
+        history_text = ""
+        for msg in req.history[-6:]:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if content:
+                history_text += f"{role.capitalize()}: {content}\n"
+
         context_text = "\n".join(context_bits).strip()
 
-        input_messages = [
-            {
-                "role": "system",
-                "content": system_prompt
-            }
-        ]
+        prompt = f"""
+{system_prompt}
 
-        if context_text:
-            input_messages.append({
-                "role": "system",
-                "content": f"Context:\n{context_text}"
-            })
+{"Context:\n" + context_text if context_text else ""}
 
-        for msg in req.history[-8:]:
-            if msg.get("role") in ["user", "assistant"] and msg.get("content"):
-                input_messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+Conversation so far:
+{history_text}
 
-        input_messages.append({
-            "role": "user",
-            "content": req.message
-        })
+User: {req.message}
+Assistant:
+""".strip()
 
-        response = client.responses.create(
+        response = client.models.generate_content(
             model=MODEL,
-            input=input_messages
+            contents=prompt
         )
 
         return {
-            "reply": response.output_text
+            "reply": response.text if response.text else "No response generated."
         }
 
     except Exception as e:
