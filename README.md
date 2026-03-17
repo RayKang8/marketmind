@@ -22,3 +22,9 @@ AI / Data Analysis Service
 Python
 FastAPI
 Pandas / NumPy / TA libraries
+
+
+
+cd ~/Desktop/marketmind/ai-service
+source venv/bin/activate
+uvicorn app.main:app --reload --port 8000
