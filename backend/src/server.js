@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const authRoutes = require("./routes/authRoutes");
 const watchlistRoutes = require("./routes/watchlistRoutes");
+const chatRoutes = require("./routes/chatRoutes");
 require("dotenv").config();
 
 const prisma = require("./lib/prisma");
@@ -12,6 +13,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/watchlists", watchlistRoutes);
+app.use("/api/chats", chatRoutes);
 
 app.get("/api/health", (req, res) => {
   res.json({ message: "Backend is running" });
