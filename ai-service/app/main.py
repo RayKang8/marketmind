@@ -4,6 +4,10 @@ from dotenv import load_dotenv
 from google import genai
 import os
 
+from app.services.ticker_detection import detect_all_tickers
+from app.services.market_data_service import fetch_market_data_for_tickers
+from app.services.prompt_builder import build_market_context, build_prompt
+
 load_dotenv()
 
 app = FastAPI()
@@ -27,47 +31,21 @@ def health():
 @app.post("/chat")
 def chat(req: ChatRequest):
     try:
-        system_prompt = """
-You are MarketMind, an AI-powered investment research assistant.
+        detected_tickers = detect_all_tickers(
+            message=req.message,
+            request_tickers=req.tickers,
+        )
 
-Rules:
-- Be concise, clear, and analytical.
-- Use full natural language.
-- Do not use markdown, headings, bullet points, asterisks, or bold formatting.
-- Write in short readable paragraphs.
-- Keep answers direct and easy to read in a chat interface.
-- Do not give direct financial advice like "buy" or "sell".
-- Frame answers as informational analysis.
-- If market data is missing or stale, say so clearly.
-- If the user references a watchlist, use the provided watchlist context.
-"""
+        market_data = fetch_market_data_for_tickers(detected_tickers, max_tickers=3)
+        market_context = build_market_context(market_data)
 
-        context_bits = []
-        if req.watchlist_name:
-            context_bits.append(f"Selected watchlist: {req.watchlist_name}")
-        if req.tickers:
-            context_bits.append(f"Watchlist tickers: {', '.join(req.tickers)}")
-
-        history_text = ""
-        for msg in req.history[-6:]:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            if content:
-                history_text += f"{role.capitalize()}: {content}\n"
-
-        context_text = "\n".join(context_bits).strip()
-
-        prompt = f"""
-{system_prompt}
-
-{"Context:\n" + context_text if context_text else ""}
-
-Conversation so far:
-{history_text}
-
-User: {req.message}
-Assistant:
-""".strip()
+        prompt = build_prompt(
+            user_message=req.message,
+            watchlist_name=req.watchlist_name,
+            watchlist_tickers=req.tickers,
+            history=req.history,
+            market_context=market_context,
+        )
 
         response = client.models.generate_content(
             model=MODEL,
@@ -75,7 +53,10 @@ Assistant:
         )
 
         return {
-            "reply": response.text if response.text else "No response generated."
+            "reply": response.text if response.text else "No response generated.",
+            "detected_tickers": detected_tickers,
+            "grounding_used": len(market_data) > 0,
+            "market_data_count": len(market_data),
         }
 
     except Exception as e:
