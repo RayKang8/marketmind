@@ -1,15 +1,15 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from google import genai
 import os
 
+load_dotenv()
+
+from google import genai
 from app.services.ticker_detection import detect_all_tickers
 from app.services.market_data_service import fetch_market_data_for_tickers
 from app.services.news_service import fetch_news_for_tickers
 from app.services.prompt_builder import build_market_context, build_news_context, build_prompt
-
-load_dotenv()
 
 app = FastAPI()
 

@@ -3,8 +3,11 @@ import requests
 from datetime import datetime, timedelta, timezone
 
 
-FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
+
+
+def get_finnhub_api_key() -> str | None:
+    return os.getenv("FINNHUB_API_KEY")
 
 
 def format_unix_timestamp(ts) -> str:
@@ -24,13 +27,14 @@ def normalize_news_item(item: dict, fallback_ticker: str | None = None) -> dict:
         "source": (item.get("source") or "Unknown source").strip(),
         "url": item.get("url"),
         "published_at": format_unix_timestamp(item.get("datetime")),
-        "symbols": fallback_ticker,
+        "symbols": item.get("related") or fallback_ticker,
         "summary": (item.get("summary") or "").strip(),
     }
 
 
 def fetch_news_for_ticker(ticker: str, limit: int = 3, days_back: int = 7) -> list[dict]:
-    if not FINNHUB_API_KEY:
+    api_key = get_finnhub_api_key()
+    if not api_key:
         return []
 
     today = datetime.now(timezone.utc).date()
@@ -43,7 +47,7 @@ def fetch_news_for_ticker(ticker: str, limit: int = 3, days_back: int = 7) -> li
                 "symbol": ticker,
                 "from": start_date.isoformat(),
                 "to": today.isoformat(),
-                "token": FINNHUB_API_KEY,
+                "token": api_key,
             },
             timeout=10,
         )
@@ -56,7 +60,8 @@ def fetch_news_for_ticker(ticker: str, limit: int = 3, days_back: int = 7) -> li
         normalized = [normalize_news_item(item, fallback_ticker=ticker) for item in data]
         return normalized[:limit]
 
-    except Exception:
+    except Exception as e:
+        print(f"Finnhub fetch error for {ticker}: {e}")
         return []
 
 
