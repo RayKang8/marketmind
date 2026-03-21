@@ -32,51 +32,63 @@ def normalize_news_item(item: dict, fallback_ticker: str | None = None) -> dict:
     }
 
 
-def is_relevant_news_item(item: dict, ticker: str) -> bool:
+def get_company_aliases(ticker: str) -> list[str]:
+    company_aliases = {
+        "NVDA": ["nvidia", "nvda"],
+        "TSLA": ["tesla", "tsla"],
+        "AMD": ["amd", "advanced micro devices"],
+        "SOFI": ["sofi"],
+        "AAPL": ["apple", "aapl"],
+        "MSFT": ["microsoft", "msft"],
+        "AMZN": ["amazon", "amzn"],
+        "GOOGL": ["google", "alphabet", "googl"],
+        "META": ["meta", "facebook"],
+        "PLTR": ["palantir", "pltr"],
+        "AVGO": ["broadcom", "avgo"],
+        "INTC": ["intel", "intc"],
+        "NFLX": ["netflix", "nflx"],
+        "CRM": ["salesforce", "crm"],
+        "ORCL": ["oracle", "orcl"],
+        "ADBE": ["adobe", "adbe"],
+        "SHOP": ["shopify", "shop"],
+        "HOOD": ["robinhood", "hood"],
+        "SNOW": ["snowflake", "snow"],
+        "SPOT": ["spotify", "spot"],
+        "UBER": ["uber"],
+        "COIN": ["coinbase", "coin"],
+    }
+    return company_aliases.get(ticker.upper(), [ticker.lower()])
+
+
+def score_news_item(item: dict, ticker: str) -> int:
     ticker = ticker.upper()
+    aliases = get_company_aliases(ticker)
 
     title = (item.get("title") or "").lower()
     summary = (item.get("summary") or "").lower()
-    symbols = str(item.get("symbols") or "").upper()
+    symbols = str(item.get("symbols") or "").lower()
 
-    company_aliases = {
-        "NVDA": ["nvidia"],
-        "TSLA": ["tesla"],
-        "AMD": ["amd", "advanced micro devices"],
-        "SOFI": ["sofi"],
-        "AAPL": ["apple"],
-        "MSFT": ["microsoft"],
-        "AMZN": ["amazon"],
-        "GOOGL": ["google", "alphabet"],
-        "META": ["meta", "facebook"],
-        "PLTR": ["palantir"],
-        "AVGO": ["broadcom"],
-        "INTC": ["intel"],
-        "NFLX": ["netflix"],
-        "CRM": ["salesforce"],
-        "ORCL": ["oracle"],
-        "ADBE": ["adobe"],
-        "SHOP": ["shopify"],
-        "HOOD": ["robinhood"],
-        "SNOW": ["snowflake"],
-        "SPOT": ["spotify"],
-        "UBER": ["uber"],
-        "COIN": ["coinbase"],
-    }
+    score = 0
 
-    aliases = company_aliases.get(ticker, [])
-
-    if ticker in title.upper():
-        return True
-
-    if ticker in symbols:
-        return True
-
+    # strongest signal: headline directly names the company/ticker
     for alias in aliases:
-        if alias in title or alias in summary:
-            return True
+        if alias in title:
+            score += 5
 
-    return False
+    # summary also matters, but less than headline
+    for alias in aliases:
+        if alias in summary:
+            score += 3
+
+    # related/symbol field helps, but should not dominate by itself
+    if ticker.lower() in symbols:
+        score += 2
+
+    return score
+
+
+def is_relevant_news_item(item: dict, ticker: str, min_score: int = 5) -> bool:
+    return score_news_item(item, ticker) >= min_score
 
 
 def fetch_news_for_ticker(ticker: str, limit: int = 3, days_back: int = 7) -> list[dict]:
@@ -105,9 +117,17 @@ def fetch_news_for_ticker(ticker: str, limit: int = 3, days_back: int = 7) -> li
             return []
 
         normalized = [normalize_news_item(item, fallback_ticker=ticker) for item in data]
-        filtered = [item for item in normalized if is_relevant_news_item(item, ticker)]
 
-        return filtered[:limit]
+        scored = []
+        for item in normalized:
+            score = score_news_item(item, ticker)
+            if score >= 5:
+                item["relevance_score"] = score
+                scored.append(item)
+
+        scored.sort(key=lambda x: x.get("relevance_score", 0), reverse=True)
+
+        return scored[:limit]
 
     except Exception as e:
         print(f"Finnhub fetch error for {ticker}: {e}")
