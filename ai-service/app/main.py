@@ -9,7 +9,16 @@ from google import genai
 from app.services.ticker_detection import detect_all_tickers
 from app.services.market_data_service import fetch_market_data_for_tickers
 from app.services.news_service import fetch_news_for_tickers
-from app.services.prompt_builder import build_market_context, build_news_context, build_prompt
+from app.services.watchlist_analysis_service import (
+    is_watchlist_analysis_request,
+    fetch_watchlist_market_data,
+    build_watchlist_analysis_context,
+)
+from app.services.prompt_builder import (
+    build_market_context,
+    build_news_context,
+    build_prompt,
+)
 
 app = FastAPI()
 
@@ -43,6 +52,20 @@ def chat(req: ChatRequest):
         market_context = build_market_context(market_data)
         news_context = build_news_context(news_items)
 
+        watchlist_analysis_used = is_watchlist_analysis_request(req.message, req.tickers)
+        watchlist_analysis_context = None
+        watchlist_market_data_count = 0
+
+        if watchlist_analysis_used:
+            watchlist_market_data = fetch_watchlist_market_data(req.tickers, max_tickers=12)
+            watchlist_market_data_count = len(watchlist_market_data)
+
+            watchlist_analysis_context = build_watchlist_analysis_context(
+                watchlist_name=req.watchlist_name,
+                watchlist_tickers=req.tickers,
+                watchlist_market_data=watchlist_market_data,
+            )
+
         prompt = build_prompt(
             user_message=req.message,
             watchlist_name=req.watchlist_name,
@@ -50,6 +73,8 @@ def chat(req: ChatRequest):
             history=req.history,
             market_context=market_context,
             news_context=news_context,
+            watchlist_analysis_context=watchlist_analysis_context,
+            watchlist_analysis_used=watchlist_analysis_used,
         )
 
         response = client.models.generate_content(
@@ -63,6 +88,8 @@ def chat(req: ChatRequest):
             "grounding_used": len(market_data) > 0,
             "market_data_count": len(market_data),
             "news_count": len(news_items),
+            "watchlist_analysis_used": watchlist_analysis_used,
+            "watchlist_market_data_count": watchlist_market_data_count,
         }
 
     except Exception as e:

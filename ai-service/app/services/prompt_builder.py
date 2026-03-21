@@ -105,6 +105,8 @@ def build_prompt(
     history: list[dict],
     market_context: str,
     news_context: str,
+    watchlist_analysis_context: str | None = None,
+    watchlist_analysis_used: bool = False,
 ) -> str:
     history_lines = []
     for msg in history[-6:]:
@@ -135,11 +137,12 @@ Rules:
 - Sound natural, not robotic or overly formal.
 - Do not give direct financial advice like "buy" or "sell".
 - Frame answers as informational analysis.
-- Use the verified market data and verified news below when relevant.
+- Use the verified market data, verified news, and verified watchlist analysis below when relevant.
 - Do not invent numbers, catalysts, earnings results, news, price moves, or company facts.
 - Only describe a stock move as being caused by news if the provided headlines clearly support that connection.
 - If the news suggests a possible catalyst but does not fully confirm it, say it may be related rather than stating it as a fact.
 - If only market data is available, focus on what the stock is doing and what the company is, not why the move happened.
+- If the user is asking about the watchlist, analyze concentration, sector exposure, valuation risk, and macro sensitivity using the provided watchlist analysis.
 - If neither market data nor recent news fully explains a move, say that clearly.
 - If the user references a watchlist, use the provided watchlist context.
 - If verified data is limited, answer cautiously and say so.
@@ -150,6 +153,9 @@ Rules:
         f"Verified market data:\n{market_context}",
         f"Verified recent news:\n{news_context}",
     ]
+
+    if watchlist_analysis_used and watchlist_analysis_context:
+        prompt_parts.append(f"Verified watchlist analysis:\n{watchlist_analysis_context}")
 
     if context_text:
         prompt_parts.append(f"Context:\n{context_text}")
