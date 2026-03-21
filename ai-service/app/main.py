@@ -6,7 +6,8 @@ import os
 
 from app.services.ticker_detection import detect_all_tickers
 from app.services.market_data_service import fetch_market_data_for_tickers
-from app.services.prompt_builder import build_market_context, build_prompt
+from app.services.news_service import fetch_news_for_tickers
+from app.services.prompt_builder import build_market_context, build_news_context, build_prompt
 
 load_dotenv()
 
@@ -37,7 +38,10 @@ def chat(req: ChatRequest):
         )
 
         market_data = fetch_market_data_for_tickers(detected_tickers, max_tickers=3)
+        news_items = fetch_news_for_tickers(detected_tickers, per_ticker_limit=3, total_limit=5)
+
         market_context = build_market_context(market_data)
+        news_context = build_news_context(news_items)
 
         prompt = build_prompt(
             user_message=req.message,
@@ -45,6 +49,7 @@ def chat(req: ChatRequest):
             watchlist_tickers=req.tickers,
             history=req.history,
             market_context=market_context,
+            news_context=news_context,
         )
 
         response = client.models.generate_content(
@@ -57,6 +62,7 @@ def chat(req: ChatRequest):
             "detected_tickers": detected_tickers,
             "grounding_used": len(market_data) > 0,
             "market_data_count": len(market_data),
+            "news_count": len(news_items),
         }
 
     except Exception as e:

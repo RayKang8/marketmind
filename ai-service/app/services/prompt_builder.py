@@ -71,12 +71,40 @@ Business Summary: {trim_description(stock.get("description"))}
     return "\n\n".join(blocks)
 
 
+def build_news_context(news_items: list[dict]) -> str:
+    if not news_items:
+        return "No recent verified news headlines were found for this request."
+
+    lines = []
+
+    for item in news_items:
+        title = item.get("title", "Untitled")
+        source = item.get("source", "Unknown source")
+        published_at = item.get("published_at", "Unknown date")
+        symbols = item.get("symbols", "")
+        summary = item.get("summary", "")
+
+        line = f"Headline: {title}\nSource: {source}\nPublished: {published_at}"
+        if symbols:
+            line += f"\nRelated symbols: {symbols}"
+        if summary:
+            trimmed = summary[:220].strip()
+            if len(summary) > 220:
+                trimmed += "..."
+            line += f"\nSnippet: {trimmed}"
+
+        lines.append(line)
+
+    return "\n\n".join(lines)
+
+
 def build_prompt(
     user_message: str,
     watchlist_name: str | None,
     watchlist_tickers: list[str],
     history: list[dict],
     market_context: str,
+    news_context: str,
 ) -> str:
     history_lines = []
     for msg in history[-6:]:
@@ -107,19 +135,20 @@ Rules:
 - Sound natural, not robotic or overly formal.
 - Do not give direct financial advice like "buy" or "sell".
 - Frame answers as informational analysis.
-- Use the verified market data below when relevant.
+- Use the verified market data and verified news below when relevant.
 - Do not invent numbers, catalysts, earnings results, news, price moves, or company facts.
-- Do not claim to know why a stock is moving unless the cause is explicitly provided in the prompt.
+- Only describe a stock move as being caused by news if the provided headlines clearly support that connection.
+- If the news suggests a possible catalyst but does not fully confirm it, say it may be related rather than stating it as a fact.
 - If only market data is available, focus on what the stock is doing and what the company is, not why the move happened.
-- If market data does not fully explain a move, say that clearly and stop there.
-- Avoid unnecessary speculation.
+- If neither market data nor recent news fully explains a move, say that clearly.
 - If the user references a watchlist, use the provided watchlist context.
-- If no verified market data is available, answer cautiously and say the data is limited.
+- If verified data is limited, answer cautiously and say so.
 """.strip()
 
     prompt_parts = [
         system_prompt,
         f"Verified market data:\n{market_context}",
+        f"Verified recent news:\n{news_context}",
     ]
 
     if context_text:
