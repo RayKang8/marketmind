@@ -32,6 +32,53 @@ def normalize_news_item(item: dict, fallback_ticker: str | None = None) -> dict:
     }
 
 
+def is_relevant_news_item(item: dict, ticker: str) -> bool:
+    ticker = ticker.upper()
+
+    title = (item.get("title") or "").lower()
+    summary = (item.get("summary") or "").lower()
+    symbols = str(item.get("symbols") or "").upper()
+
+    company_aliases = {
+        "NVDA": ["nvidia"],
+        "TSLA": ["tesla"],
+        "AMD": ["amd", "advanced micro devices"],
+        "SOFI": ["sofi"],
+        "AAPL": ["apple"],
+        "MSFT": ["microsoft"],
+        "AMZN": ["amazon"],
+        "GOOGL": ["google", "alphabet"],
+        "META": ["meta", "facebook"],
+        "PLTR": ["palantir"],
+        "AVGO": ["broadcom"],
+        "INTC": ["intel"],
+        "NFLX": ["netflix"],
+        "CRM": ["salesforce"],
+        "ORCL": ["oracle"],
+        "ADBE": ["adobe"],
+        "SHOP": ["shopify"],
+        "HOOD": ["robinhood"],
+        "SNOW": ["snowflake"],
+        "SPOT": ["spotify"],
+        "UBER": ["uber"],
+        "COIN": ["coinbase"],
+    }
+
+    aliases = company_aliases.get(ticker, [])
+
+    if ticker in title.upper():
+        return True
+
+    if ticker in symbols:
+        return True
+
+    for alias in aliases:
+        if alias in title or alias in summary:
+            return True
+
+    return False
+
+
 def fetch_news_for_ticker(ticker: str, limit: int = 3, days_back: int = 7) -> list[dict]:
     api_key = get_finnhub_api_key()
     if not api_key:
@@ -58,7 +105,9 @@ def fetch_news_for_ticker(ticker: str, limit: int = 3, days_back: int = 7) -> li
             return []
 
         normalized = [normalize_news_item(item, fallback_ticker=ticker) for item in data]
-        return normalized[:limit]
+        filtered = [item for item in normalized if is_relevant_news_item(item, ticker)]
+
+        return filtered[:limit]
 
     except Exception as e:
         print(f"Finnhub fetch error for {ticker}: {e}")
@@ -83,7 +132,11 @@ def dedupe_news_items(items: list[dict]) -> list[dict]:
     return deduped
 
 
-def fetch_news_for_tickers(tickers: list[str], per_ticker_limit: int = 3, total_limit: int = 5) -> list[dict]:
+def fetch_news_for_tickers(
+    tickers: list[str],
+    per_ticker_limit: int = 3,
+    total_limit: int = 5,
+) -> list[dict]:
     all_items = []
 
     for ticker in tickers[:3]:
