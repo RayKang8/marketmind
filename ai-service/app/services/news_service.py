@@ -1,70 +1,49 @@
 import os
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
-FMP_API_KEY = os.getenv("FMP_API_KEY")
-FMP_BASE_URL = "https://financialmodelingprep.com/stable"
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
+FINNHUB_BASE_URL = "https://finnhub.io/api/v1"
 
 
-def parse_date(date_str: str | None) -> str:
-    if not date_str:
+def format_unix_timestamp(ts) -> str:
+    if not ts:
         return "Unknown date"
 
     try:
-        cleaned = date_str.replace("Z", "+00:00")
-        dt = datetime.fromisoformat(cleaned)
+        dt = datetime.fromtimestamp(ts, tz=timezone.utc)
         return dt.strftime("%Y-%m-%d %H:%M UTC")
     except Exception:
-        return date_str
+        return "Unknown date"
 
 
 def normalize_news_item(item: dict, fallback_ticker: str | None = None) -> dict:
-    title = (
-        item.get("title")
-        or item.get("headline")
-        or item.get("text")
-        or "Untitled"
-    )
-
-    source = (
-        item.get("site")
-        or item.get("source")
-        or item.get("publisher")
-        or "Unknown source"
-    )
-
-    url = item.get("url") or item.get("link")
-    published_at = (
-        item.get("publishedDate")
-        or item.get("published_date")
-        or item.get("date")
-        or item.get("datetime")
-    )
-
-    symbols = item.get("symbol") or item.get("symbols") or fallback_ticker
-    text = item.get("text") or item.get("snippet") or item.get("content") or ""
-
     return {
-        "title": title.strip(),
-        "source": source.strip() if isinstance(source, str) else "Unknown source",
-        "url": url,
-        "published_at": parse_date(published_at),
-        "symbols": symbols,
-        "summary": text.strip(),
+        "title": (item.get("headline") or "Untitled").strip(),
+        "source": (item.get("source") or "Unknown source").strip(),
+        "url": item.get("url"),
+        "published_at": format_unix_timestamp(item.get("datetime")),
+        "symbols": fallback_ticker,
+        "summary": (item.get("summary") or "").strip(),
     }
 
 
-def fetch_news_for_ticker(ticker: str, limit: int = 3) -> list[dict]:
-    if not FMP_API_KEY:
+def fetch_news_for_ticker(ticker: str, limit: int = 3, days_back: int = 7) -> list[dict]:
+    if not FINNHUB_API_KEY:
         return []
+
+    today = datetime.now(timezone.utc).date()
+    start_date = today - timedelta(days=days_back)
 
     try:
         response = requests.get(
-            f"{FMP_BASE_URL}/news/stock",
+            f"{FINNHUB_BASE_URL}/company-news",
             params={
-                "symbols": ticker,
-                "apikey": FMP_API_KEY,
+                "symbol": ticker,
+                "from": start_date.isoformat(),
+                "to": today.isoformat(),
+                "token": FINNHUB_API_KEY,
             },
             timeout=10,
         )
@@ -103,7 +82,7 @@ def fetch_news_for_tickers(tickers: list[str], per_ticker_limit: int = 3, total_
     all_items = []
 
     for ticker in tickers[:3]:
-        all_items.extend(fetch_news_for_ticker(ticker, limit=per_ticker_limit))
+        all_items.extend(fetch_news_for_ticker(ticker, limit=per_ticker_limit, days_back=7))
 
     all_items = dedupe_news_items(all_items)
     return all_items[:total_limit]
