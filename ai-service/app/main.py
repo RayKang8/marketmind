@@ -79,7 +79,10 @@ def chat(req: ChatRequest):
 
         response = client.models.generate_content(
             model=MODEL,
-            contents=prompt
+            contents=prompt,
+            config={
+                "max_output_tokens": 220
+            }
         )
 
         return {
