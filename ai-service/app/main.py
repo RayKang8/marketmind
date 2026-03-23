@@ -67,8 +67,6 @@ def chat(req: ChatRequest):
                 watchlist_market_data=watchlist_market_data,
             )
 
-        today = datetime.utcnow().strftime("%B %d, %Y")
-
         prompt = build_prompt(
             user_message=req.message,
             watchlist_name=req.watchlist_name,
