@@ -694,8 +694,7 @@ export default function AppPage() {
                         <div className="rounded-3xl border border-zinc-200 bg-zinc-50 px-5 py-4">
                           <p className="text-sm text-zinc-500">MarketMind</p>
                           <p className="mt-2 text-sm leading-7 text-zinc-900">
-                            Ask about any stock, market move, sector trend, or your
-                            watchlist. This chat system is now wired into your backend.
+                          What would you like to explore today? You can ask about stocks, market news, or analyze your watchlist.
                           </p>
                         </div>
                         <div ref={bottomRef} />
