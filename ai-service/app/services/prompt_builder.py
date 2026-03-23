@@ -107,6 +107,7 @@ def build_prompt(
     news_context: str,
     watchlist_analysis_context: str | None = None,
     watchlist_analysis_used: bool = False,
+    today: str | None = None
 ) -> str:
     history_lines = []
     for msg in history[-6:]:
@@ -129,12 +130,14 @@ def build_prompt(
     You are MarketMind, an AI-powered investment research assistant.
 
     Response style:
-    - Keep answers SHORT and to the point.
-    - Most replies should be 2–4 sentences.
-    - Never exceed 6 sentences.
-    - Focus only on the most important insight.
-    - Avoid repeating information already stated.
-    - Do not write long explanations unless the user explicitly asks for detailed analysis.
+    - Start the response by writing the current date exactly as provided.
+    - Keep answers short and to the point.
+    - Most replies should be around 3 short sentences.
+    - Keep replies concise, but always complete the thought naturally.
+    - Start with the single most important insight in the first sentence.
+    - Focus only on the most useful takeaway.
+    - Avoid repeating information.
+    - Do not write long explanations unless the user explicitly asks for more detail.
 
     Writing rules:
     - Use full natural language.
@@ -152,14 +155,20 @@ def build_prompt(
     - If neither market data nor news clearly explains a move, say that briefly.
 
     Watchlist rules:
-    - If the user asks about a watchlist, focus on the single most important takeaway first (for example concentration or risk).
+    - If the user asks about a watchlist, focus on the single most important takeaway first.
     """.strip()
 
     prompt_parts = [
-        system_prompt,
+    system_prompt,
+    ]
+
+    if today:
+        prompt_parts.append(f"Today’s date: {today}")
+
+    prompt_parts.extend([
         f"Verified market data:\n{market_context}",
         f"Verified recent news:\n{news_context}",
-    ]
+    ])
 
     if watchlist_analysis_used and watchlist_analysis_context:
         prompt_parts.append(f"Verified watchlist analysis:\n{watchlist_analysis_context}")

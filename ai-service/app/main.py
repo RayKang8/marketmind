@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from datetime import datetime
 import os
 
 load_dotenv()
@@ -66,6 +67,8 @@ def chat(req: ChatRequest):
                 watchlist_market_data=watchlist_market_data,
             )
 
+        today = datetime.utcnow().strftime("%B %d, %Y")
+
         prompt = build_prompt(
             user_message=req.message,
             watchlist_name=req.watchlist_name,
@@ -80,9 +83,6 @@ def chat(req: ChatRequest):
         response = client.models.generate_content(
             model=MODEL,
             contents=prompt,
-            config={
-                "max_output_tokens": 220
-            }
         )
 
         return {
